@@ -1,5 +1,5 @@
 /** @format */
 
-declare module 'baileys-pro';
+declare module 'baileys';
 declare module 'qrcode-terminal';
 declare module 'express';

@@ -5,7 +5,7 @@ import {
 	DisconnectReason,
 	makeWASocket,
 	ConnectionUpdate,
-} from 'baileys-pro';
+} from 'baileys';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import fs from 'fs';
@@ -13,8 +13,8 @@ import qrcode from 'qrcode-terminal';
 import { loadCommands } from './plugins';
 import { connectToMongo } from '../models/mongo';
 import handleMessage from './handlemessage';
-type WASocket = ReturnType<typeof makeWASocket>;
 import { serializeMessage } from './serialize';
+type WASocket = ReturnType<typeof makeWASocket>;
 declare global {
 	var sock: WASocket | null;
 }

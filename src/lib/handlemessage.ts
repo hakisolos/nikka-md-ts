@@ -28,6 +28,7 @@ interface Message {
 	message?: MessageContent;
 	raw?: RawMessage;
 	_processedButton?: boolean;
+	jid: string;
 	react: (emoji: string) => Promise<void>;
 	reply: (text: string) => Promise<void>;
 }

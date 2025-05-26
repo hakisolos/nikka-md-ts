@@ -3,6 +3,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { WASocket } from 'baileys';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 // Type definitions
@@ -55,6 +57,17 @@ interface WhatsAppMessage {
 	_processedButton?: boolean;
 	react: (emoji: string) => Promise<void>;
 	reply: (text: string) => Promise<void>;
+	jid: string; // Added jid property
+}
+
+// Update the command handler type
+interface CommandInfo {
+	pattern: string;
+	desc: string;
+	usage: string;
+	category: string;
+	react?: boolean;
+	public?: boolean;
 }
 
 interface CommandContext {
