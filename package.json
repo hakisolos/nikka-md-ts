@@ -20,9 +20,7 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "@whiskeysockets/baileys": "^6.7.17",
     "baileys": "^6.7.17",
-    "baileys-pro": "^0.0.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "file-type": "^21.0.0",

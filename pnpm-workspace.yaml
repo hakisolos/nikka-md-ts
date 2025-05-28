@@ -1,3 +1,6 @@
+ignoredBuiltDependencies:
+  - '@whiskeysockets/baileys'
+  - baileys
 onlyBuiltDependencies:
   - esbuild
   - protobufjs

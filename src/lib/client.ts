@@ -77,7 +77,6 @@ export const start = async (): Promise<WASocket> => {
 				if (m.type !== 'notify') return;
 
 				const serialized = serializeMessage(msg, sock);
-				// Only process if serialized exists and has a valid fromMe property
 				if (
 					serialized &&
 					serialized.key &&
