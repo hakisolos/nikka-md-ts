@@ -3,10 +3,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { pathToFileURL } from 'url';
 import { WASocket } from 'baileys';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 // Type definitions
 interface Config {
 	PREFIX: string;
@@ -57,10 +59,10 @@ interface WhatsAppMessage {
 	_processedButton?: boolean;
 	react: (emoji: string) => Promise<void>;
 	reply: (text: string) => Promise<void>;
-	jid: string; // Added jid property
+	send?: (text: string) => Promise<void>; // Added for backward compatibility
+	jid: string;
 }
 
-// Update the command handler type
 interface CommandInfo {
 	pattern: string;
 	desc: string;
@@ -134,12 +136,11 @@ type EventTypesConstant = {
 // Global declarations
 declare global {
 	var sock: any;
-	var nikka: any; // Using 'any' to avoid circular reference
+	var nikka: any;
 	var EVENT_TYPES: EventTypesConstant;
 }
 
 // Import config with proper typing
-//const config: Config = require('../config');
 import config from '../config';
 const typedConfig: Config = config;
 const commands = new Map<string | RegExp, Command>();
@@ -218,6 +219,8 @@ function nikka(
 		}
 		eventHandlers.get(eventType)!.push(handler);
 
+		console.log(`📝 Registered event handler: ${eventType}`);
+
 		return {
 			type: 'event',
 			options: handler,
@@ -244,6 +247,7 @@ function nikka(
 	};
 
 	commands.set(cmdOptions.pattern, cmdOptions);
+	console.log(`📝 Registered command: ${cmdOptions.pattern} (public: ${cmdOptions.public})`);
 
 	return {
 		type: 'command',
@@ -255,65 +259,97 @@ function nikka(
 	};
 }
 
-function hasPermission(
-	m: WhatsAppMessage,
-	cmd: Command | EventHandler
-): boolean {
-	if (cmd.public === true) return true;
+function hasPermission(m: WhatsAppMessage, cmd: Command | EventHandler): boolean {
+	console.log('🔐 Checking permissions:', {
+		isPublic: cmd.public,
+		sender: m.sender,
+		botId: global.sock?.user?.id,
+		sudoUsers: config.SUDO,
+		owner: config.OWNER
+	});
+
+	if (cmd.public === true) {
+		console.log('✅ Command is public');
+		return true;
+	}
 
 	const senderNumber = m.sender.split('@')[0];
-	const botNumber = global.sock.user.id.split('@')[0];
+	const botNumber = global.sock?.user?.id?.split('@')[0];
 
-	if (m.key && m.key.fromMe) return true;
-	if (senderNumber === botNumber) return true;
+	if (m.key && m.key.fromMe) {
+		console.log('✅ Message from bot itself');
+		return true;
+	}
+	
+	if (senderNumber === botNumber) {
+		console.log('✅ Sender is bot');
+		return true;
+	}
 
 	if (
 		(config.SUDO && config.SUDO.includes(senderNumber)) ||
 		(config.OWNER && config.OWNER === senderNumber)
 	) {
+		console.log('✅ Sender is SUDO/Owner');
 		return true;
 	}
 
+	console.log('❌ Permission denied');
 	return false;
 }
 
 async function executeCommand(m: WhatsAppMessage): Promise<boolean> {
+	console.log('🔍 executeCommand called with message:', {
+		body: m.body,
+		sender: m.sender,
+		hasPrefix: m.body?.startsWith(PREFIX),
+		prefix: PREFIX,
+		totalCommands: commands.size
+	});
+
+	// Ensure backward compatibility - if send method exists, use it as fallback
+	if (!m.reply && m.send) {
+		m.reply = m.send;
+	}
+
 	// Handle button response messages
 	const buttonId = m.raw?.message?.buttonsResponseMessage?.selectedButtonId;
 	if (buttonId && !m._processedButton) {
-		// Add a flag to prevent recursion
-		console.log(`Button pressed: ${buttonId}`);
+		console.log(`🔘 Button pressed: ${buttonId}`);
+		m._processedButton = true;
 
 		// If the buttonId starts with the prefix, process it as a command
 		if (buttonId.startsWith(PREFIX)) {
-			// Extract the command without prefix and prepare arguments
 			const input = buttonId.slice(PREFIX.length).trim();
 			const args = input.split(/\s+/);
 			const command = args.shift()!.toLowerCase();
 			const match = args.join(' ');
 
-			// Directly find and execute the matched command
+			console.log('🔘 Processing button command:', { command, args, match });
+
+			// Find and execute the matched command
 			for (const [pattern, cmd] of commands.entries()) {
 				const isMatch =
-					(typeof pattern === 'string' && pattern === command) ||
+					(typeof pattern === 'string' && pattern.toLowerCase() === command) ||
 					(pattern instanceof RegExp && pattern.test(command));
 
 				if (isMatch) {
 					try {
 						if (!hasPermission(m, cmd)) {
+							console.log('❌ Permission denied for button command');
 							return true;
 						}
 
 						if (cmd.react) await m.react('⏳');
 
-						// Pass match along with other parameters
 						await cmd.callback(m, { match, args, command, prefix: PREFIX });
 
 						if (cmd.react) await m.react('✅');
+						console.log('✅ Button command executed successfully');
 						return true;
 					} catch (err) {
 						const error = err as Error;
-						console.error(`Error executing button command ${command}:`, error);
+						console.error(`❌ Error executing button command ${command}:`, error);
 						await m.reply(`Error executing command: ${error.message}`);
 						if (cmd.react) await m.react('❌');
 						return true;
@@ -321,13 +357,10 @@ async function executeCommand(m: WhatsAppMessage): Promise<boolean> {
 				}
 			}
 
-			// If no command matched this button, try a fallback
 			await m.reply(`No handler found for button command: ${buttonId}`);
 			return true;
 		} else {
-			// For buttons without the prefix, handle them here
-
-			// Example: Handle "alive" button without prefix
+			// Handle custom buttons without prefix
 			if (buttonId === 'alive') {
 				await m.reply(
 					'*Bot is alive and running!* 🌸\n\n• Version: 1.0.0\n• Status: Online\n• Uptime: ' +
@@ -336,8 +369,6 @@ async function executeCommand(m: WhatsAppMessage): Promise<boolean> {
 				);
 				return true;
 			}
-
-			// Add other custom button handlers here
 		}
 	}
 
@@ -346,35 +377,74 @@ async function executeCommand(m: WhatsAppMessage): Promise<boolean> {
 		const input = m.body.slice(PREFIX.length).trim();
 		const args = input.split(/\s+/);
 		const command = args.shift()!.toLowerCase();
-		const match = args.join(' '); // This will be the text after the command
+		const match = args.join(' ');
+
+		console.log('📝 Command parsed:', {
+			input,
+			command,
+			args,
+			match,
+			totalCommands: commands.size
+		});
+
+		console.log('📋 Registered commands:', Array.from(commands.keys()));
 
 		for (const [pattern, cmd] of commands.entries()) {
-			const isMatch =
-				(typeof pattern === 'string' && pattern === command) ||
-				(pattern instanceof RegExp && pattern.test(command));
+			let isMatch = false;
+			
+			if (typeof pattern === 'string') {
+				isMatch = pattern.toLowerCase() === command;
+			} else if (pattern instanceof RegExp) {
+				isMatch = pattern.test(command);
+			}
+
+			console.log(`🔄 Checking pattern "${pattern}" against command "${command}":`, isMatch);
 
 			if (isMatch) {
+				console.log('✅ Command matched! Checking permissions...');
+				
 				try {
 					if (!hasPermission(m, cmd)) {
+						console.log('❌ Permission denied for command');
+						await m.reply('❌ You don\'t have permission to use this command.');
 						return true;
 					}
 
-					if (cmd.react) await m.react('⏳');
+					console.log('🚀 Executing command...');
 
-					// Pass match along with other parameters
+					if (cmd.react) {
+						await m.react('⏳').catch(console.error);
+					}
+
 					await cmd.callback(m, { match, args, command, prefix: PREFIX });
 
-					if (cmd.react) await m.react('✅');
+					if (cmd.react) {
+						await m.react('✅').catch(console.error);
+					}
+					
+					console.log('✅ Command executed successfully');
 					return true;
 				} catch (err) {
 					const error = err as Error;
-					console.error(`Error executing command ${command}:`, error);
-					await m.reply(`Error executing command: ${error.message}`);
-					if (cmd.react) await m.react('❌');
+					console.error(`❌ Error executing command ${command}:`, error);
+					
+					try {
+						await m.reply(`❌ Error executing command: ${error.message}`);
+					} catch (replyError) {
+						console.error('❌ Failed to send error reply:', replyError);
+					}
+					
+					if (cmd.react) {
+						await m.react('❌').catch(console.error);
+					}
 					return true;
 				}
 			}
 		}
+
+		console.log('❌ No command matched');
+	} else {
+		console.log('📝 Message does not start with prefix or has no body');
 	}
 
 	// If no command matched, try to handle as an event
@@ -400,12 +470,15 @@ function formatUptime(seconds: number): string {
 }
 
 async function handleEvent(m: WhatsAppMessage): Promise<boolean> {
+	console.log('📨 handleEvent called for message type detection');
+
 	// First check for replies to the bot
 	if (
 		m.quoted !== null &&
 		m.quoted!.sender === m.user &&
 		eventHandlers.has(EVENT_TYPES.REPLY_TO_BOT)
 	) {
+		console.log('📬 Detected reply to bot');
 		const replyHandlers = eventHandlers.get(EVENT_TYPES.REPLY_TO_BOT)!;
 		for (const handler of replyHandlers) {
 			try {
@@ -420,13 +493,11 @@ async function handleEvent(m: WhatsAppMessage): Promise<boolean> {
 				if (handler.react) await m.react('❌');
 			}
 		}
-		return true; // Stop processing if it's a reply to the bot
+		return true;
 	}
 
-	// Then handle based on content type
+	// Determine event type based on message content
 	let eventType: EventType;
-
-	// Check the message structure more thoroughly
 	const messageContent = m.message || {};
 
 	if (messageContent.imageMessage) {
@@ -446,14 +517,16 @@ async function handleEvent(m: WhatsAppMessage): Promise<boolean> {
 	} else if (messageContent.locationMessage) {
 		eventType = EVENT_TYPES.LOCATION;
 	} else {
-		// Default to text for any other type
 		eventType = EVENT_TYPES.TEXT;
 	}
+
+	console.log(`📨 Detected event type: ${eventType}`);
 
 	let handled = false;
 
 	// Process specific event type handlers
 	if (eventHandlers.has(eventType)) {
+		console.log(`📨 Processing ${eventType} handlers`);
 		const typeHandlers = eventHandlers.get(eventType)!;
 		for (const handler of typeHandlers) {
 			try {
@@ -471,8 +544,9 @@ async function handleEvent(m: WhatsAppMessage): Promise<boolean> {
 		}
 	}
 
-	// Finally process 'any' handlers
+	// Process 'any' handlers
 	if (eventHandlers.has(EVENT_TYPES.ANY)) {
+		console.log(`📨 Processing 'any' handlers`);
 		const anyHandlers = eventHandlers.get(EVENT_TYPES.ANY)!;
 		for (const handler of anyHandlers) {
 			try {
@@ -493,10 +567,9 @@ async function handleEvent(m: WhatsAppMessage): Promise<boolean> {
 	return handled;
 }
 
-// Adding a function to install plugins from eval code
+// Function to install plugins from eval code
 function installPluginFromCode(pluginCode: string): boolean {
 	try {
-		// Create a function context with access to nikka
 		const contextFunction = new Function(
 			'nikka',
 			'EVENT_TYPES',
@@ -504,9 +577,7 @@ function installPluginFromCode(pluginCode: string): boolean {
 			pluginCode
 		);
 
-		// Execute the plugin code with nikka function in context
 		contextFunction(nikka, EVENT_TYPES, require);
-
 		return true;
 	} catch (error) {
 		console.error('Failed to install plugin from code:', error);
@@ -526,23 +597,22 @@ async function loadCommands(): Promise<void> {
 
 	const files = fs
 		.readdirSync(pluginsFolder)
-		.filter(file => file.endsWith('.js'));
+		.filter(file => file.endsWith('.ts'));
 
-	// Clear existing handlers before loading
 	commands.clear();
 	eventHandlers.clear();
 
 	for (const file of files) {
 		try {
-			const pluginPath = path.join(pluginsFolder, file);
-			delete require.cache[require.resolve(pluginPath)];
-			require(pluginPath);
+			const pluginPath = pathToFileURL(path.join(pluginsFolder, file)).href;
+			console.log(`📦 Loading plugin: ${file}`);
+			await import(pluginPath);
 		} catch (error) {
 			console.error(`❌ Failed to load plugin ${file}:`, error);
 		}
 	}
 
-	console.log('🎉 Plugins installed, finished');
+	console.log(`🎉 Plugins installed successfully! Total commands: ${commands.size}, Total event handlers: ${Array.from(eventHandlers.values()).flat().length}`);
 }
 
 // Make nikka global so it can be accessed from eval code
@@ -567,6 +637,4 @@ export {
 	type Command,
 	type EventHandler,
 	type EventType,
-}; // Make nikka global so it can be accessed from eval code
-global.nikka = nikka;
-global.EVENT_TYPES = EVENT_TYPES;
+};

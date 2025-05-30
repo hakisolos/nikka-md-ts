@@ -1,87 +1,48 @@
-/** @format */
-
-import { executeCommand } from './plugins';
+import { executeCommand } from "./plugins";
 import config from '../config';
-import util from 'util';
+import util from 'util'
+import type {Serialize} from "./serialize"
 
-interface QuotedMessage {
-	sender: string;
-	message?: MessageContent;
-}
 
-interface MessageContent {
-	[key: string]: any;
-}
-
-interface RawMessage {
-	[key: string]: any;
-}
-
-interface Message {
-	body?: string;
-	key?: {
-		fromMe: boolean;
-	};
-	sender: string;
-	quoted?: QuotedMessage | null;
-	user?: string;
-	message?: MessageContent;
-	raw?: RawMessage;
-	_processedButton?: boolean;
-	jid: string;
-	react: (emoji: string) => Promise<void>;
-	reply: (text: string) => Promise<void>;
-}
-
-function isSudoOrOwner(senderJID: string): boolean {
-	const senderNumber = senderJID.split('@')[0];
-
+function isSudoOrOwner(senderJid: string): boolean {
+	const senderNum = senderJid.split("@")[0]
 	if (config.SUDO && Array.isArray(config.SUDO)) {
-		for (const sudo of config.SUDO) {
-			if (senderNumber === sudo) {
-				return true;
+			for (const sudo of config.SUDO) {
+				if (senderNum === sudo) {
+					return true;
+				}
 			}
 		}
-	}
-
-	if (config.OWNER && senderNumber === config.OWNER) {
-		return true;
-	}
-
-	return false;
+		if (config.OWNER && senderNum === config.OWNER) {
+			return true;
+		}
+		return false
 }
 
-async function handleMessage(m: Message): Promise<void> {
+export async function handleMessage(m: Serialize) {
 	if (!m) {
 		return;
 	}
 
 	if (m.body && m.body.startsWith('$')) {
-		if (!m.key?.fromMe && !isSudoOrOwner(m.sender)) {
+		if (!(m.key && m.fromMe) && !isSudoOrOwner(m.sender ?? '')) {
 			return;
 		}
 
 		const code = m.body.slice(1).trim();
 		const result = await eval(`(async () => { ${code} })()`);
 		const response = typeof result === 'string' ? result : util.inspect(result);
-		await m.reply(response);
+		await m.reply(response) 
+		console.log(response)
 		return;
 	}
 
-	if (m.body && m.body.startsWith('#eval')) {
-		if (!m.key?.fromMe && !isSudoOrOwner(m.sender)) {
-			return;
-		}
-
-		const code = m.body.slice(6).trim();
-		const result = await eval(`(async () => { ${code} })()`);
-		const response = typeof result === 'string' ? result : util.inspect(result);
-		await m.reply(response);
+	// Add type guard to ensure sender exists
+	if (!m.sender) {
+		console.log('Message sender is undefined, skipping command execution');
 		return;
 	}
 
-	const commandExecuted = await executeCommand(m);
+	const commandExecuted = await executeCommand(m as any);
 	if (commandExecuted) return;
 }
-
-export default handleMessage;

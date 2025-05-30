@@ -4,19 +4,18 @@ import {
 	useMultiFileAuthState,
 	DisconnectReason,
 	makeWASocket,
-	ConnectionUpdate,
-} from 'baileys';
+} from 'bail';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import fs from 'fs';
 import qrcode from 'qrcode-terminal';
 import { loadCommands } from './plugins';
 import { connectToMongo } from '../models/mongo';
-import handleMessage from './handlemessage';
-import { serializeMessage } from './serialize';
+import {handleMessage} from './handlemessage';
+import { serialize } from './serialize';
 type WASocket = ReturnType<typeof makeWASocket>;
 declare global {
-	var sock: WASocket | null;
+	var sock: any | null;
 }
 global.sock = null;
 
@@ -26,7 +25,7 @@ export const start = async (): Promise<WASocket> => {
 	const { state, saveCreds } = await useMultiFileAuthState('./auth');
 	const sock = makeWASocket({
 		auth: state,
-		printQrInTerminal: true,
+		printQRInTerminal: true,
 		browser: ['Nikka', 'Chrome', '1.0.0'],
 		syncFullHistory: false,
 		markOnlineOnConnect: true,
@@ -76,16 +75,21 @@ export const start = async (): Promise<WASocket> => {
 				const msg = m.messages[0];
 				if (m.type !== 'notify') return;
 
-				const serialized = serializeMessage(msg, sock);
+				const serialized = serialize(msg, sock);
+				console.log(serialized)
 				if (
 					serialized &&
 					serialized.key &&
 					typeof serialized.key.fromMe === 'boolean'
 				) {
-					await handleMessage({
-						...serialized,
-						key: { ...serialized.key, fromMe: serialized.key.fromMe },
-					});
+					if (serialized && serialized.message !== null) {
+						await handleMessage({
+						  ...serialized,
+						  sender: serialized.sender || 'unknown',
+						  key: { ...serialized.key, fromMe: serialized.key.fromMe },
+						});
+					  }
+					  
 				}
 			} catch (err) {
 				console.error('Message processing error:', err);

@@ -6,12 +6,11 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "pm2 start src/index.ts --name nikka-md --interpreter ./node_modules/.bin/ts-node"
+    "start": "npx tsx src/index.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "packageManager": "pnpm@10.11.0",
   "devDependencies": {
     "@types/node": "^22.15.21",
     "ts-node": "^10.9.2",
@@ -20,10 +19,12 @@
   },
   "dependencies": {
     "@hapi/boom": "^10.0.1",
-    "baileys": "^6.7.17",
+    "bail": "github:WhiskeySockets/Baileys",
+    "baileys": "^6.7.18",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "file-type": "^21.0.0",
+    "font-style": "^1.1.0",
     "form-data": "^4.0.2",
     "mongoose": "^8.15.0",
     "node-fetch": "^3.3.2",

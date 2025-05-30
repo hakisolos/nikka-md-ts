@@ -24,7 +24,7 @@ const config: Config = {
 		? process.env.SUDO.split(',')
 		: ['2349112171078', '94703981512', '2349123721026'],
 	OWNER: process.env.OWNER || '2349112171078',
-	PREFIX: process.env.PREFIX || '?',
+	PREFIX: process.env.PREFIX || '.',
 	MONGO_URI: process.env.MONGO_URI || '',
 	ANTIDELETE_IN_CHAT: toBool(process.env.ANTIDELETE_IN_CHAT) || false,
 	ANTI_DELETE: toBool(process.env.ANTI_DELETE) || true,
