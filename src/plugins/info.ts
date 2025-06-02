@@ -42,7 +42,7 @@ nikka(
                                 mediaType: 1,
                                 showAdAttribution: true,
                                 renderLargerThumbnail: false,
-                                thumbnailUrl: 'https://files.catbox.moe/agj0kg.png',
+                                thumbnailUrl: 'https://files.catbox.moe/v8slsv.png',
                             },
                         },
                     },
@@ -201,4 +201,35 @@ Category: ${cmd.category}\`\`\``);
 );
 
 
+nikka(
+    {
+        pattern: "uptime",
+        desc: "uptime of bot",
+        public: false,
+        category: "info",
+        react: true,
+    },
+    async(m: any) => {
+        const uptimeMsg = `${formatUptime()}`
+        return await sock.sendMessage(
+            m.jid,
+            {
+                text: `Uptime of Nikka Md: ${uptimeMsg}`,
+                contextInfo: {
+                    externalAdReply: {
+                        title: 'NIKKA | UPTIME',
+                        body: 'NIKKA SOCIETY',
+                        sourceUrl: '',
+                        mediaUrl: '',
+                        mediaType: 1,
+                        showAdAttribution: true,
+                        renderLargerThumbnail: false,
+                        thumbnailUrl: 'https://files.catbox.moe/rmb6ce.png',
+                    },
+                },
+            },
+            { quoted: m.raw }
+        );
+    }
+)
 

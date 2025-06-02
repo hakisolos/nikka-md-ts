@@ -4,7 +4,7 @@ import {
 	useMultiFileAuthState,
 	DisconnectReason,
 	makeWASocket,
-} from 'bail';
+} from 'baileys';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import fs from 'fs';
